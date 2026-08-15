@@ -46,6 +46,9 @@ is only available in native Agent Skills clients.
 - Keep the folder name equal to `agy-image`.
 - Preserve the exact uppercase filename `SKILL.md`.
 - Resolve bundled scripts and references relative to the skill directory.
+- Run `scripts/runtime_probe.py` before generation; obey its selected launcher,
+  absolute `agy` path, and translated path domain instead of assuming the agent
+  host and generator host are the same.
 - Do not assume an agent-specific shell. The generation wrapper itself must run
   in the Linux/WSL environment where `agy` is installed.
 

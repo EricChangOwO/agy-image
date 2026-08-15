@@ -9,6 +9,46 @@ Generate one required image at a time with the local agy CLI, collect its real
 artifact, and verify the delivered file. Treat agy as the generator; do not
 substitute another backend.
 
+## Step 0: detect the runtime and path domain
+
+Do this before inspecting assets or invoking the generator. Windows paths,
+WSL paths, and native POSIX paths are different domains; never assume the
+agent's Python runtime is the runtime where `agy` is installed.
+
+On Windows PowerShell:
+
+```powershell
+python "{baseDir}\scripts\runtime_probe.py" `
+  --path "{baseDir}" `
+  --path "<absolute Windows output path>" `
+  --path "<absolute Windows reference path>"
+```
+
+Inside WSL, Linux, or macOS:
+
+```bash
+python3 "{baseDir}/scripts/runtime_probe.py" \
+  --path "{baseDir}" \
+  --path "<absolute output path>" \
+  --path "<absolute reference path>"
+```
+
+The command emits JSON. Stop if it exits nonzero, `status` is not `ready`, or
+any `translated_paths[].error` is non-null. Then:
+
+1. Invoke `agy_image.py` with `generation.launcher`.
+2. Use each `translated_paths[].generation_path` for the script location,
+   `--out`, `--ref`, and `--refs-dir`.
+3. Always pass `--agy-bin <generation.agy_path>`; a non-interactive WSL Python
+   process may not inherit the login-shell `PATH` containing `agy`.
+4. Never use Windows `pathlib` to reinterpret `/mnt/c/...`, or POSIX `pathlib`
+   to reinterpret `C:\...`.
+5. Keep paths written into storyboard source relative to the beatmap. Runtime
+   conversion applies only to filesystem operations.
+
+Read [runtime-paths.md](references/runtime-paths.md) for the environment matrix
+and path examples.
+
 ## Decide whether to generate
 
 For osu! storyboard work, trigger this skill when the storyboard plan needs an
@@ -50,25 +90,32 @@ For storyboard-specific targets, use the sizes in
 
 ## Run the bundled wrapper
 
-On Linux or from inside WSL:
+After Step 0, run the wrapper in the selected generation runtime. For example,
+inside Linux or WSL, use the probed absolute `agy` path:
 
 ```bash
 python3 {baseDir}/scripts/agy_image.py \
+  --agy-bin /home/<user>/.local/bin/agy \
   --prompt "<scene, style, lighting, composition; no text or watermark>" \
   --width <W> --height <H> \
   --out "/absolute/output/path.ext" \
   --crop
 ```
 
-On Windows when `agy` is installed inside WSL, invoke that same script inside
-the distro. Translate the skill path with `wslpath` when needed:
+On Windows when the probe selects WSL, use its selected distro, translated
+paths, and `generation.agy_path`:
 
 ```powershell
-$skillWindows = '<absolute Windows skill path>'
-$skillWsl = (wsl.exe -d Ubuntu -- wslpath -u $skillWindows.Replace('\', '/')).Trim()
-wsl.exe -d Ubuntu -- python3 "$skillWsl/scripts/agy_image.py" `
+$probe = (python "{baseDir}\scripts\runtime_probe.py" `
+  --path "{baseDir}" --path '<absolute Windows output path>' | Out-String) |
+  ConvertFrom-Json
+if ($LASTEXITCODE -ne 0 -or $probe.status -ne 'ready') { throw 'agy runtime is not ready' }
+$skillPath = $probe.translated_paths[0].generation_path
+$outPath = $probe.translated_paths[1].generation_path
+wsl.exe -d $probe.generation.distro -- python3 "$skillPath/scripts/agy_image.py" `
+  --agy-bin $probe.generation.agy_path `
   --prompt '<scene prompt>' --width <W> --height <H> `
-  --out '/home/<user>/agy_images/asset.jpg' --crop
+  --out $outPath --crop
 ```
 
 The wrapper automatically uses agy's headless permission flag
@@ -132,6 +179,8 @@ is [install_skill.py](scripts/install_skill.py).
 
 - Read [agy-cli.md](references/agy-cli.md) when agy flags, artifact behavior, or
   size/format handling changes.
+- Read [runtime-paths.md](references/runtime-paths.md) before changing runtime
+  detection, WSL selection, or path translation.
 - Read [readiness_report.md](references/readiness_report.md) before changing the
   lifecycle state in [skill_lifecycle.yaml](skill_lifecycle.yaml).
 - Follow [migration-governance.md](references/migration-governance.md) for a rename,

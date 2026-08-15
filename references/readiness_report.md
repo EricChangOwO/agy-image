@@ -14,7 +14,7 @@ editing/analysing existing images and for requests naming another generator.
 | Check | Result |
 |---|---|
 | Agent Skills `quick_validate.py` | PASS |
-| Python compile: generation wrapper and installer | PASS |
+| Python compile: generation wrapper, runtime probe, and installer | PASS |
 | Eval and regression-gate JSON parsing | PASS |
 | `git diff --check` | PASS |
 | Frontmatter portability | PASS: only `name` and `description` |
@@ -32,6 +32,9 @@ editing/analysing existing images and for requests naming another generator.
 | Read-only forward test | An isolated agent selected the skill for a missing storybrew chorus panorama, inventoried assets, chose 1536x864 JPEG plus `SB/agy/` relative integration, and exposed a dry-run directory-write issue that was fixed |
 | Live agy dispatch | Auth succeeded and exactly one native `generate_image` call was recorded |
 | Live agy completion | INCONCLUSIVE: the 2026-08-15 request timed out server-side after 12 minutes and created no artifact; wrapper returned `status: failed` without fabricating output |
+| Windows to WSL detection | Windows Python selected Ubuntu, found agy 1.1.13 at `/home/e0pwr/.local/bin/agy`, and translated repository/output paths to `/mnt/c/...` in about one second |
+| WSL direct detection | WSL Python found agy through login-shell PATH even when the non-interactive process PATH omitted `~/.local/bin`; the probe returns the absolute executable for `--agy-bin` |
+| Distro side effects | Probing stops after the first distro containing agy; the initially exposed extra-distro startup was avoided on retest and the test Kali distro was restored to Stopped |
 
 An earlier direct agy test on the same host completed a 1024x1024 JPEG artifact
 after adding the permission flag. The later wrapper test demonstrates correct
@@ -46,6 +49,8 @@ The bundled eval set covers:
 - reuse-only and simple-resize storyboard negatives;
 - another named generator and image-analysis negatives;
 - permission and artifact-discovery regressions.
+- Windows-host/WSL runtime selection, login-shell discovery, and mixed-path
+  rejection regressions.
 
 ## Compatibility
 
