@@ -1,7 +1,7 @@
 {
   "skill": "agy-image",
-  "version": "2026.5.30",
-  "description": "Trigger + functional eval set for the agy-image skill. Direct/indirect prompts should route here; negatives (editing, analysis, other generators) should not.",
+  "version": "2026.8.15",
+  "description": "Trigger and functional cases for generic agy generation plus missing osu! storyboard assets.",
   "benchmark_metadata_required": [
     "skill_version",
     "git_commit",
@@ -13,104 +13,122 @@
   ],
   "evals": [
     {
-      "id": "direct-zh-night-portrait",
+      "id": "direct-zh-agy",
       "trigger_class": "direct",
       "language": "zh",
-      "coverage_tags": ["should-trigger", "happy-path"],
-      "prompt": "用 agy 生一張 9:16 的夜景人像，皮膚白皙、俏皮表情",
-      "expected_output": "Routes to agy-image; resolves 9:16 to explicit pixels and generates a PNG at that exact size.",
+      "coverage_tags": ["should-trigger", "agy", "happy-path"],
+      "prompt": "用 WSL 裡的 agy 生一張 16:9 星空背景。",
       "expectations": [
-        "selects the agy-image skill",
-        "resolves 9:16 to explicit pixels like 1024x1536",
-        "verifies output dimensions before delivering"
+        "selects agy-image",
+        "uses explicit pixels",
+        "runs the bundled wrapper inside WSL",
+        "verifies the real output"
       ]
     },
     {
-      "id": "direct-en-city-4x5",
-      "trigger_class": "direct",
-      "language": "en",
-      "coverage_tags": ["should-trigger", "happy-path"],
-      "prompt": "Generate an image with the agy CLI, 4:5, of a neon-lit city street at night",
-      "expected_output": "Routes to agy-image; translates 4:5 to explicit width/height and produces a verified PNG.",
-      "expectations": [
-        "selects the agy-image skill",
-        "uses explicit width/height not aspect-ratio shorthand",
-        "attaches the image inline with its actual size"
-      ]
-    },
-    {
-      "id": "indirect-mixed-exact-pixels",
-      "trigger_class": "indirect",
-      "language": "mixed",
-      "coverage_tags": ["should-trigger", "edge-case"],
-      "prompt": "用 antigravity cli 跑一張圖，要 1024x1536 直式，不要方圖",
-      "expected_output": "Routes to agy-image; passes width=1024 height=1536 and forbids the 1024x1024 square fallback.",
-      "expectations": [
-        "selects the agy-image skill",
-        "honors the exact 1024x1536 request",
-        "enables the crop fallback if the size drifts"
-      ]
-    },
-    {
-      "id": "indirect-zh-reference-consistency",
+      "id": "osu-missing-background-zh",
       "trigger_class": "indirect",
       "language": "zh",
-      "coverage_tags": ["should-trigger", "edge-case"],
-      "prompt": "幫我用 antigravity 出一張角色一致的寫真，參考我存的幾張臉部圖",
-      "expected_output": "Routes to agy-image; passes the reference images via --ref/--refs-dir for identity lock.",
+      "coverage_tags": ["should-trigger", "osu-storyboard", "missing-asset"],
+      "prompt": "幫我寫這張圖的 osu storyboard，副歌需要一張目前素材夾沒有的霓虹城市全景。",
       "expectations": [
-        "selects the agy-image skill",
-        "passes the reference images for identity",
-        "keeps the prompt about scene not facial features"
+        "inventories existing beatmap images first",
+        "selects agy-image when the required city asset is absent",
+        "chooses an osu-appropriate JPEG size and relative path",
+        "integrates and previews the generated asset"
       ]
     },
     {
-      "id": "direct-mixed-square-fallback-fix",
-      "trigger_class": "direct",
-      "language": "mixed",
-      "coverage_tags": ["should-trigger", "failure-mode"],
-      "prompt": "agy 又吐了一張 1024x1024 方圖，但我要 4:5，幫我把尺寸修好",
-      "expected_output": "Routes to agy-image; re-runs or applies --crop to enforce the exact 4:5 pixel size.",
+      "id": "osu-storybrew-missing-cut-in-en",
+      "trigger_class": "indirect",
+      "language": "en",
+      "coverage_tags": ["should-trigger", "storybrew", "foreground"],
+      "prompt": "Build the storybrew chorus scene; it needs a new character cut-in that is not in the map folder.",
       "expectations": [
-        "selects the agy-image skill",
-        "uses --crop to enforce the exact size",
-        "verifies the corrected dimensions"
+        "selects agy-image for the missing visual",
+        "does not claim agy guarantees alpha",
+        "plans PNG matting and alpha verification",
+        "uses a relative beatmap path"
       ]
     },
     {
-      "id": "negative-overlap-other-generator",
-      "trigger_class": "negative",
-      "language": "zh",
-      "coverage_tags": ["should-not-trigger", "overlap-neighbor"],
-      "prompt": "用 Midjourney 生一張貓咪太空人漂浮在太空的圖",
-      "expected_output": "Does not route to agy-image; this names a different, non-agy image generator.",
-      "expectations": [
-        "does not select agy-image",
-        "defers to the explicitly requested generator"
-      ]
-    },
-    {
-      "id": "negative-en-edit-existing",
+      "id": "osu-existing-assets-only",
       "trigger_class": "negative",
       "language": "en",
-      "coverage_tags": ["should-not-trigger", "near-miss"],
-      "prompt": "Edit this existing photo to remove the background and brighten the subject",
-      "expected_output": "Does not route to agy-image; this is editing an existing image, not agy generation.",
+      "coverage_tags": ["should-not-trigger", "osu-storyboard", "reuse"],
+      "prompt": "Write an osu storyboard using only the twelve images already in SB/assets; do not generate anything new.",
       "expectations": [
-        "does not select agy-image",
-        "recognizes this as image editing"
+        "does not invoke agy",
+        "reuses existing assets"
       ]
     },
     {
-      "id": "negative-zh-agy-analyze",
+      "id": "osu-simple-resize",
       "trigger_class": "negative",
       "language": "zh",
-      "coverage_tags": ["should-not-trigger", "near-miss"],
-      "prompt": "用 agy 幫我分析這張圖片裡面有哪些物件、人物和文字內容",
-      "expected_output": "Does not route to agy-image; agy is named but the task is image analysis, not generation.",
+      "coverage_tags": ["should-not-trigger", "image-editing", "osu-storyboard"],
+      "prompt": "把現有的 SB/bg.jpg 縮成 854x480 再放進 storyboard。",
+      "expectations": [
+        "does not invoke agy",
+        "uses an image resize workflow"
+      ]
+    },
+    {
+      "id": "reference-character-series",
+      "trigger_class": "direct",
+      "language": "mixed",
+      "coverage_tags": ["should-trigger", "reference-lock", "series"],
+      "prompt": "用 antigravity CLI 參考角色圖，為 storyboard 生三個相同角色的場景。",
+      "expectations": [
+        "starts with one reviewed image",
+        "uses one or two references",
+        "keeps subject anchor and dimensions stable"
+      ]
+    },
+    {
+      "id": "other-generator",
+      "trigger_class": "negative",
+      "language": "zh",
+      "coverage_tags": ["should-not-trigger", "other-generator"],
+      "prompt": "用 Midjourney 生一張 osu storyboard 的太空背景。",
       "expectations": [
         "does not select agy-image",
-        "treats this as image analysis not generation"
+        "respects the explicitly named generator"
+      ]
+    },
+    {
+      "id": "analyze-existing",
+      "trigger_class": "negative",
+      "language": "en",
+      "coverage_tags": ["should-not-trigger", "analysis"],
+      "prompt": "Use agy to analyse the objects and text in this existing storyboard frame.",
+      "expectations": [
+        "does not select agy-image",
+        "recognizes image analysis rather than generation"
+      ]
+    },
+    {
+      "id": "headless-permission-regression",
+      "trigger_class": "functional",
+      "language": "en",
+      "coverage_tags": ["wrapper", "permissions", "regression"],
+      "prompt": "Generate one 1024x1024 test image through agy print mode.",
+      "expectations": [
+        "uses --dangerously-skip-permissions with the plural spelling",
+        "uses --disable-slash-commands",
+        "does not recursively invoke agy-image"
+      ]
+    },
+    {
+      "id": "artifact-collection-regression",
+      "trigger_class": "functional",
+      "language": "en",
+      "coverage_tags": ["wrapper", "artifact", "regression"],
+      "prompt": "agy stores its JPEG in the brain directory rather than --out.",
+      "expectations": [
+        "discovers only a new or modified artifact",
+        "materializes it at --out",
+        "reports source_artifact and the true final format"
       ]
     }
   ]

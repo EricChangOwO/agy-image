@@ -1,96 +1,67 @@
-# agy-image — Readiness Report (release evidence)
+# agy-image readiness report
 
-Skill version: 2026.5.30
-Audit date: 2026-05-30
-Author: built via skill-creator-advanced.
+Audit date: 2026-08-15
+Lifecycle stage: draft
 
-## Mechanical gate results
+## Scope
 
-`release_gate.py agy-image --stage draft` → **PASS** (all checks; benchmark skipped). Individual gates:
+The skill generates one verified raster image through local agy and now includes
+automatic routing for missing osu! storyboard assets. It remains out of scope for
+editing/analysing existing images and for requests naming another generator.
 
-| Gate | Result |
-|------|--------|
-| format | PASS (0 errors, 0 warnings) |
-| openclaw frontmatter | PASS (0 issues) |
-| structure (semantic blocks) | PASS |
-| workflow_contract | PASS |
-| semantics / semantic_rules | PASS |
-| lifecycle | PASS (date-based version, benchmark metadata declared) |
-| lifecycle_state (`skill_lifecycle.yaml`) | PASS (status: draft) |
-| eval_coverage | PASS (7 coverage tags, zh/en/mixed) |
-| eval_quality | PASS |
-| golden_trigger_set | PASS (direct=3, indirect=2, negative=3) |
-| wrapper_drift / surface_drift | PASS |
-| migration_governance | PASS |
-| skill_references / unreferenced_files | PASS |
-| healthcheck | PASS |
-| script compiles (`py_compile`) | PASS |
-| benchmark | SKIPPED (live paired run pending) |
+## Mechanical checks
 
-Re-run from `/home/ubuntu/.claude/skills/skill-creator-advanced/scripts/` against
-`/home/ubuntu/.openclaw/skills/agy-image`.
+| Check | Result |
+|---|---|
+| Agent Skills `quick_validate.py` | PASS |
+| Python compile: generation wrapper and installer | PASS |
+| Eval and regression-gate JSON parsing | PASS |
+| `git diff --check` | PASS |
+| Frontmatter portability | PASS: only `name` and `description` |
+| Codex `agents/openai.yaml` generation | PASS |
 
-## Requirement / policy checks
-
-| Check | Status | Notes |
-|-------|--------|-------|
-| Auth / permissions documented | PASS | No API key; local auth; wrapper injects `--dangerously-skip-permissions`. |
-| Output contract specifies format | PASS | Verified size + inline attachment; required response shape. |
-| Negative boundary present | PASS | Scoped to agy only; editing/analysis and non-agy generation are out of scope. |
-| Default follow-through policy | PASS | Direct vs ask-first vs stop-and-report defined. |
-| Sizing policy (exact pixels, not ratio) | PASS | Encoded in prompt composition + presets table. |
-| High-risk actions gated | PASS | Publishing / overwriting / large batches require approval. |
-
-## Common error checks
-
-| Check | Status | Notes |
-|-------|--------|-------|
-| Square (1024x1024) fallback | PASS | `--crop` enforces exact size; troubleshooting documents it. |
-| Wrong / near-ratio size | PASS | ffmpeg center-crop + scale to exact pixels. |
-| JPEG bytes under `.png` name | PASS | Detector reports true container in `format`. |
-| agy not found / unauthenticated | PASS | `failed` status surfaces stdout/stderr tail. |
-| Timeout | PASS | `--timeout` (default 12m); buffered output explained. |
-| Reference ignored / face drift | PASS | 1–2 front-facing refs; remove facial descriptors. |
-
-## Functional verification (this session)
+## Functional checks
 
 | Check | Evidence |
-|-------|----------|
-| Prompt composition | `--dry-run` emits size-lock + reference block + correct deduped `--add-dir` list (output dir + refs dir). |
-| Dimension detector (no PIL) | Correctly read 576x1024 PNG, 1024x1536 PNG, 818x1024 PNG, and detected the **JPEG-bytes-under-.png** case (1024x1024 jpeg). |
-| ffmpeg size enforce | 1024x1024 jpeg → exact **1024x1280** png via center-crop + scale. |
-| End-to-end agy run | Not re-run inside the skill, but the underlying flow (explicit `1024x1536` pixels → native 1024x1536 output) was validated live this session before the skill was authored. |
+|---|---|
+| Permission command | Dry-run includes plural `--dangerously-skip-permissions` and `--disable-slash-commands` |
+| Installer | Project-scope `--agent all` produced valid copies for `.agents`, `.claude`, `.gemini`, and `.github`; Codex and universal intentionally share `.agents` at project scope |
+| Artifact materialization | Existing 1024x1024 agy JPEG became a genuine 854x480 PNG under WSL without ffmpeg, using Windows PowerShell System.Drawing |
+| Header verification | Materialized output parsed as PNG, 854x480 |
+| Deterministic wrapper path | A fake agy executable created one new brain artifact; the full wrapper discovered it, produced a cropped 854x480 JPEG, and returned `status: completed`, `matched: true`, and `source_artifact` |
+| Read-only forward test | An isolated agent selected the skill for a missing storybrew chorus panorama, inventoried assets, chose 1536x864 JPEG plus `SB/agy/` relative integration, and exposed a dry-run directory-write issue that was fixed |
+| Live agy dispatch | Auth succeeded and exactly one native `generate_image` call was recorded |
+| Live agy completion | INCONCLUSIVE: the 2026-08-15 request timed out server-side after 12 minutes and created no artifact; wrapper returned `status: failed` without fabricating output |
 
-## Structure / scope
+An earlier direct agy test on the same host completed a 1024x1024 JPEG artifact
+after adding the permission flag. The later wrapper test demonstrates correct
+dispatch and failure handling but is not counted as a completed end-to-end pass.
 
-- Single primary job: generate one image via the agy CLI at an exact pixel size,
-  optionally identity-locked. Editing/analysis and non-agy image generation are out of
-  scope (negative boundary in description + decision_boundary).
-- Wrapper is thin: it composes the prompt, runs `agy --print`, verifies, and (optionally)
-  enforces size. No new backend, no hidden state in the skill folder.
+## Trigger coverage
 
-## Design provenance (why the rules exist)
+The bundled eval set covers:
 
-- agy's image tool defaults to a 1024x1024 square and honours ratio shorthand
-  inconsistently; explicit pixel dimensions are reliable. This is the core rule the
-  skill encodes (see `agy-cli.md`).
-- agy may write JPEG bytes under a `.png` name → detector reports the real container.
-- PIL is absent on this host → header-only dimension parsing + ffmpeg for cropping.
+- direct Chinese and English agy requests;
+- indirect `.osb`, `.osu`, and storybrew missing-asset cases;
+- reuse-only and simple-resize storyboard negatives;
+- another named generator and image-analysis negatives;
+- permission and artifact-discovery regressions.
 
-## Known limitations / residual risk
+## Compatibility
 
-- agy is an LLM agent; a single run can still drift on size. `--crop` makes the final
-  size deterministic; without it, verify `matched` and re-run if needed.
-- A trigger + functional eval set is bundled (`assets/evals/evals.json`, 8 cases). The
-  remaining gap is a **live paired benchmark** (with-skill vs baseline) — required to
-  promote lifecycle status past `draft`; gated by `assets/evals/regression_gates.json`.
-- Live generation depends on local Antigravity auth and account quota; failures surface
-  via the script JSON `status: failed` with the agy output tail.
+The root directory follows the Agent Skills `SKILL.md` layout. The installer has
+targets for Codex, Claude Code, universal `.agents`, Gemini CLI, and GitHub
+Copilot/VS Code. Client-specific prompt forks are intentionally avoided.
 
-## Final gate
+## Residual risks
 
-| Gate | Result |
-|------|--------|
-| `release_gate --stage draft` | PASS |
-| Blockers | 0 |
-| Stage | draft — publish pending a live paired benchmark |
+- `--dangerously-skip-permissions` broadly auto-approves agy tools. The wrapper
+  disables slash-command expansion and instructs agy to call only its image tool,
+  but users should configure a permission allow-list when possible.
+- Generation depends on Antigravity authentication, service availability, and
+  account quota; timeouts are expected external failures.
+- The native tool commonly returns JPEG and does not guarantee transparency.
+- Artifact fallback discovery can be ambiguous if multiple agy sessions generate
+  images concurrently; avoid concurrent generations.
+- A completed live wrapper generation and paired benchmark remain required before
+  promoting this skill beyond draft.

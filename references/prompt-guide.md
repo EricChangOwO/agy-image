@@ -71,5 +71,5 @@ python3 {baseDir}/scripts/agy_image.py \
   --refs-dir /path/refs \
   --subject-anchor "a young woman" \
   --width 1024 --height 1280 \
-  --out /home/ubuntu/agy_images/onsen.png --crop
+  --out /home/user/agy_images/onsen.png --crop
 ```
