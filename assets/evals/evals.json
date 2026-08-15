@@ -130,6 +130,46 @@
         "materializes it at --out",
         "reports source_artifact and the true final format"
       ]
+    },
+    {
+      "id": "windows-host-wsl-runtime",
+      "trigger_class": "functional",
+      "language": "zh",
+      "coverage_tags": ["runtime", "windows", "wsl", "path-conversion"],
+      "prompt": "Agent 在 Windows PowerShell 執行，但 agy 只裝在 WSL；輸出到 C:\\Maps\\Song\\SB\\agy\\bg.jpg。",
+      "expectations": [
+        "runs runtime_probe.py before agy_image.py",
+        "selects the first detected WSL distro containing agy without probing later distros",
+        "converts the output to /mnt/c/Maps/Song/SB/agy/bg.jpg",
+        "launches the wrapper with the selected WSL python3",
+        "passes generation.agy_path through --agy-bin"
+      ]
+    },
+    {
+      "id": "wsl-login-path-runtime",
+      "trigger_class": "functional",
+      "language": "en",
+      "coverage_tags": ["runtime", "wsl", "login-shell", "path"],
+      "prompt": "Run from WSL Python where process PATH omits ~/.local/bin but login-shell PATH contains agy.",
+      "expectations": [
+        "discovers agy through the login shell",
+        "uses the absolute discovered executable with --agy-bin",
+        "keeps absolute POSIX output and reference paths unchanged",
+        "does not rely on the wrapper process PATH"
+      ]
+    },
+    {
+      "id": "mixed-path-domain-rejection",
+      "trigger_class": "functional",
+      "language": "en",
+      "coverage_tags": ["runtime", "negative", "path"],
+      "prompt": "Pass a relative output path or an untranslatable foreign-runtime path to the probe.",
+      "expectations": [
+        "returns a nonzero exit code",
+        "sets translated_paths error",
+        "does not invoke agy_image.py",
+        "does not guess by replacing slashes"
+      ]
     }
   ]
 }

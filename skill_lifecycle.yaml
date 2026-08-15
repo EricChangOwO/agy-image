@@ -18,7 +18,7 @@ support:
     - agent-skills-compatible
     - openclaw
   requires:
-    - "agy (Antigravity CLI) on PATH in Linux or WSL"
+    - "agy (Antigravity CLI) discoverable in the current runtime or a WSL login shell"
     - "local Antigravity authentication and quota"
     - "ffmpeg or Windows PowerShell for conversion/crop enforcement"
 
@@ -34,9 +34,11 @@ dependencies:
   scripts:
     - scripts/agy_image.py
     - scripts/install_skill.py
+    - scripts/runtime_probe.py
   references:
     - references/agy-cli.md
     - references/agent-compatibility.md
+    - references/runtime-paths.md
     - references/osu-storyboard.md
     - references/prompt-guide.md
     - references/troubleshooting.md

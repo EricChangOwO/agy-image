@@ -11,6 +11,8 @@ Portable Agent Skill for generating verified image assets with the local
 ## Features
 
 - 自動觸發 osu! storyboard 缺圖情境，也支援一般 `agy 生圖`要求。
+- 生圖前強制判斷 Windows、WSL、Linux 或 macOS，選出真正有 `agy` 的執行環境，
+  並把所有路徑轉成該環境可用的格式。
 - 先重用現有素材，不會因縮圖、裁切或改色等簡單工作浪費生成配額。
 - 使用明確像素尺寸，偵測 agy 常見的 1024x1024 fallback。
 - 支援角色參考圖與多場景 subject anchor。
@@ -118,19 +120,58 @@ python3 scripts/install_skill.py --agent all --dry-run
 
 Agent 應該：
 
-1. 找到 beatmap root、`.osu`、`.osb` 與 storybrew source。
-2. 搜尋現有 PNG/JPEG 及 storyboard 已引用的相對路徑。
-3. 列出缺少的 asset manifest。
-4. 一次生成一張並驗證，再決定是否繼續系列圖。
-5. 只把例如 `SB/agy/chorus-city.jpg` 這類相對路徑寫入 storyboard。
-6. 在 gameplay 中檢查 4:3、16:9 framing、layer、timing 與 hit-object readability。
+1. 先執行 runtime probe，判斷目前是 Windows、WSL 或原生 POSIX 環境。
+2. 找到 beatmap root、`.osu`、`.osb` 與 storybrew source。
+3. 搜尋現有 PNG/JPEG 及 storyboard 已引用的相對路徑。
+4. 列出缺少的 asset manifest。
+5. 一次生成一張並驗證，再決定是否繼續系列圖。
+6. 只把例如 `SB/agy/chorus-city.jpg` 這類相對路徑寫入 storyboard。
+7. 在 gameplay 中檢查 4:3、16:9 framing、layer、timing 與 hit-object readability。
+
+## 必做 Step 0：偵測 runtime 與轉換路徑
+
+不要先假設 agent 跑在哪裡，也不要先假設 distro 叫 `Ubuntu`。每次生圖前，將
+skill、輸出檔和所有 reference 的**絕對路徑**交給 probe：
+
+```powershell
+$repoWindows = (Resolve-Path '.').Path
+$outWindows = 'C:\path\to\beatmap\SB\agy\chorus-city.jpg'
+$probe = (python scripts/runtime_probe.py `
+  --path $repoWindows `
+  --path $outWindows | Out-String) | ConvertFrom-Json
+
+if ($LASTEXITCODE -ne 0 -or $probe.status -ne 'ready') {
+  throw '找不到可用的 agy runtime，或路徑無法轉換'
+}
+if ($probe.translated_paths.error | Where-Object { $_ }) {
+  throw '至少一個路徑無法轉換'
+}
+```
+
+輸出 JSON 會提供：
+
+- `generation.launcher`：wrapper 應使用的 Python runtime；
+- `generation.distro`：Windows 需要進 WSL 時所選的 distro；
+- `generation.agy_path`：真正的 `agy` 絕對路徑；
+- `translated_paths[].generation_path`：可傳給 wrapper 的正確路徑。
+
+如果 status 不是 `ready`、probe exit code 非零，或任何 path 有 `error`，agent 必須
+停止，不可以猜路徑。Windows Python 不應解析 `/mnt/c/...`，WSL Python 也不應
+解析 `C:\...`。詳細矩陣見 [runtime/path reference](references/runtime-paths.md)。
 
 ## Run the wrapper directly
 
 ### Linux / inside WSL
 
 ```bash
+probe_json="$(python3 scripts/runtime_probe.py \
+  --path "$(pwd)" \
+  --path /home/user/agy_images/chorus-city.jpg)" || exit 1
+
+# Read generation.agy_path and translated_paths from probe_json with the agent's
+# JSON tooling, then pass those exact values:
 python3 scripts/agy_image.py \
+  --agy-bin /home/user/.local/bin/agy \
   --prompt "cinematic neon city at night, rain, cyan and magenta light, strong depth, no text, no logo, no watermark" \
   --width 1536 \
   --height 864 \
@@ -142,12 +183,15 @@ python3 scripts/agy_image.py \
 
 ```powershell
 $repoWindows = (Resolve-Path '.').Path
-$repoWsl = (wsl.exe -d Ubuntu -- wslpath -u $repoWindows.Replace('\', '/')).Trim()
-
 $outWindows = 'C:\path\to\beatmap\SB\agy\chorus-city.jpg'
-$outWsl = (wsl.exe -d Ubuntu -- wslpath -u $outWindows.Replace('\', '/')).Trim()
+$probe = (python scripts/runtime_probe.py `
+  --path $repoWindows --path $outWindows | Out-String) | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0 -or $probe.status -ne 'ready') { throw 'agy runtime is not ready' }
 
-wsl.exe -d Ubuntu -- python3 "$repoWsl/scripts/agy_image.py" `
+$repoWsl = $probe.translated_paths[0].generation_path
+$outWsl = $probe.translated_paths[1].generation_path
+wsl.exe -d $probe.generation.distro -- python3 "$repoWsl/scripts/agy_image.py" `
+  --agy-bin $probe.generation.agy_path `
   --prompt 'cinematic neon city at night, rain, cyan and magenta light, strong depth, no text, no logo, no watermark' `
   --width 1536 `
   --height 864 `
@@ -224,7 +268,8 @@ AGY_REQUIRE_PERMISSIONS=1 python3 scripts/agy_image.py ...
 Lifecycle 目前是 **draft**。
 
 - Agent Skills 結構、Python、JSON、installer、zero-write dry-run、artifact discovery、
-  WSL JPEG/PNG conversion 與隔離 storyboard forward-test 已通過。
+  Windows→WSL runtime/path probe、WSL JPEG/PNG conversion 與隔離 storyboard
+  forward-test 已通過。
 - 實際 agy 測試已確認登入與單次 `generate_image` dispatch；其中一次服務端等待
   12 分鐘後 timeout，wrapper 正確回報失敗且沒有偽造輸出。
 - 完整 live wrapper success 與 paired benchmark 完成後，才會升級 lifecycle 狀態。
@@ -241,13 +286,15 @@ agy-image/
 ├── agents/openai.yaml
 ├── scripts/
 │   ├── agy_image.py
-│   └── install_skill.py
+│   ├── install_skill.py
+│   └── runtime_probe.py
 ├── references/
 │   ├── agy-cli.md
 │   ├── agent-compatibility.md
 │   ├── osu-storyboard.md
 │   ├── prompt-guide.md
 │   ├── readiness_report.md
+│   ├── runtime-paths.md
 │   └── troubleshooting.md
 ├── assets/evals/
 └── skill_lifecycle.yaml
