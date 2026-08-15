@@ -1,0 +1,4 @@
+interface:
+  display_name: "agy Image for osu! Storyboards"
+  short_description: "Generate verified agy assets for osu! storyboards"
+  default_prompt: "Use $agy-image to create the missing visual assets for this osu! storyboard."

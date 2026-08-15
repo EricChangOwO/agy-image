@@ -11,23 +11,33 @@ lifecycle:
 
 support:
   hosts:
+    - codex
+    - claude-code
+    - gemini-cli
+    - github-copilot
+    - agent-skills-compatible
     - openclaw
   requires:
-    - "agy (Antigravity CLI) on PATH"
-    - "ffmpeg (optional, only for --crop size enforcement)"
+    - "agy (Antigravity CLI) on PATH in Linux or WSL"
+    - "local Antigravity authentication and quota"
+    - "ffmpeg or Windows PowerShell for conversion/crop enforcement"
 
 risk:
-  level: low
+  level: medium
   notes: >-
-    Local image generation only; no API keys or secrets in the repo. High-risk
-    actions (publishing, overwriting user files, large batches) are gated by the
-    skill's default follow-through policy.
+    Local image generation only and no API key, but agy print mode requires broad
+    tool auto-approval unless a permission allow-list is configured. The wrapper
+    disables slash-command expansion, refuses overwrite by default, and generates
+    one reviewed image before any series.
 
 dependencies:
   scripts:
     - scripts/agy_image.py
+    - scripts/install_skill.py
   references:
     - references/agy-cli.md
+    - references/agent-compatibility.md
+    - references/osu-storyboard.md
     - references/prompt-guide.md
     - references/troubleshooting.md
     - references/readiness_report.md
